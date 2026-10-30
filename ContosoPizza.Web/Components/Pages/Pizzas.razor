@@ -1,0 +1,310 @@
+﻿@page "/pizzas"
+@rendermode InteractiveServer
+
+@using ContosoPizza.Web.Models
+@using ContosoPizza.Web.Services
+@using System.IdentityModel.Tokens.Jwt
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
+
+@inject ProtectedSessionStorage SessionStorage
+@inject PizzaApiService PizzaService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<h3>Pizzas</h3>
+
+@if (!string.IsNullOrEmpty(usuarioLogado))
+{
+    <div class="alert alert-info">
+        Olá, <strong>@usuarioLogado</strong>
+        | Perfil: <strong>@roleUsuario</strong>
+    </div>
+}
+
+<button class="btn btn-secondary mb-3"
+        @onclick="Logout">
+    Logout
+</button>
+
+@if (!string.IsNullOrEmpty(mensagem))
+{
+    <div class="alert @(sucesso ? "alert-success" : "alert-danger")">
+        @mensagem
+    </div>
+}
+
+@if (roleUsuario == "Admin")
+{
+    <div class="mb-3">
+        <label>Nome</label>
+        <input class="form-control"
+               @bind="novaPizzaNome" />
+    </div>
+
+    <div class="form-check mb-3">
+        <input class="form-check-input"
+               type="checkbox"
+               @bind="novaPizzaSemGluten" />
+
+        <label class="form-check-label">
+            Sem Glúten
+        </label>
+    </div>
+
+    @if (pizzaEmEdicaoId is null)
+    {
+        <button class="btn btn-primary"
+                @onclick="AdicionarPizza">
+            Adicionar Pizza
+        </button>
+    }
+    else
+    {
+        <button class="btn btn-success"
+                @onclick="SalvarEdicao">
+            Salvar Alterações
+        </button>
+
+        <button class="btn btn-secondary ms-2"
+                @onclick="CancelarEdicao">
+            Cancelar
+        </button>
+    }
+}
+
+<hr />
+
+@if (pizzas is null)
+{
+    <p>Carregando...</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Id</th>
+                <th>Nome</th>
+                <th>Glúten</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            @foreach (var pizza in pizzas)
+            {
+                <tr>
+                    <td>@pizza.Id</td>
+                    <td>@pizza.Name</td>
+                    <td>
+                        @(pizza.IsGlutenFree
+                            ? "Sem Glúten"
+                            : "Contém Glúten")
+                    </td>
+                    <td>
+                        @if (roleUsuario == "Admin")
+                        {
+                            <button class="btn btn-warning btn-sm"
+                                    @onclick="() => EditarPizza(pizza)">
+                                Editar
+                            </button>
+
+                            <button class="btn btn-danger btn-sm ms-2"
+                                    @onclick="() => ExcluirPizza(pizza.Id)">
+                                Excluir
+                            </button>
+                        }
+                        else
+                        {
+                            <span class="text-muted">
+                                Somente leitura
+                            </span>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<PizzaDto>? pizzas;
+
+    private string novaPizzaNome = "";
+    private bool novaPizzaSemGluten;
+
+    private int? pizzaEmEdicaoId;
+
+    private string mensagem = "";
+    private bool sucesso;
+
+    private string usuarioLogado = "";
+    private string roleUsuario = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        pizzas = await PizzaService.GetPizzasAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var token =
+                await SessionStorage.GetAsync<string>("token");
+
+            if (!token.Success ||
+                string.IsNullOrEmpty(token.Value))
+            {
+                Navigation.NavigateTo("/login");
+                return;
+            }
+
+            await CarregarUsuario();
+
+            StateHasChanged();
+        }
+    }
+
+    private async Task CarregarUsuario()
+    {
+        var resultado =
+            await SessionStorage.GetAsync<string>("token");
+
+        if (!resultado.Success ||
+            string.IsNullOrEmpty(resultado.Value))
+        {
+            return;
+        }
+
+        var handler = new JwtSecurityTokenHandler();
+
+        var jwt = handler.ReadJwtToken(resultado.Value);
+
+        usuarioLogado =
+            jwt.Claims
+                .FirstOrDefault(c =>
+                    c.Type.Contains("name"))
+                ?.Value ?? "";
+
+        roleUsuario =
+            jwt.Claims
+                .FirstOrDefault(c =>
+                    c.Type.Contains("role"))
+                ?.Value ?? "";
+    }
+
+    private void EditarPizza(PizzaDto pizza)
+    {
+        pizzaEmEdicaoId = pizza.Id;
+
+        novaPizzaNome = pizza.Name;
+        novaPizzaSemGluten = pizza.IsGlutenFree;
+    }
+
+    private async Task AdicionarPizza()
+    {
+        if (string.IsNullOrWhiteSpace(novaPizzaNome))
+        {
+            mensagem = "❌ Informe o nome da pizza.";
+            sucesso = false;
+            return;
+        }
+
+        var pizza = new CreatePizzaDto
+        {
+            Name = novaPizzaNome,
+            IsGlutenFree = novaPizzaSemGluten
+        };
+
+        await PizzaService.AddPizzaAsync(pizza);
+
+        pizzas = await PizzaService.GetPizzasAsync();
+
+        mensagem = "✅ Pizza criada com sucesso!";
+        sucesso = true;
+
+        novaPizzaNome = "";
+        novaPizzaSemGluten = false;
+    }
+
+    private async Task SalvarEdicao()
+    {
+        if (pizzaEmEdicaoId is null)
+            return;
+
+        if (string.IsNullOrWhiteSpace(novaPizzaNome))
+        {
+            mensagem = "❌ Informe o nome da pizza.";
+            sucesso = false;
+            return;
+        }
+
+        var pizza = new UpdatePizzaDto
+        {
+            Id = pizzaEmEdicaoId.Value,
+            Name = novaPizzaNome,
+            IsGlutenFree = novaPizzaSemGluten
+        };
+
+        await PizzaService.UpdatePizzaAsync(
+            pizzaEmEdicaoId.Value,
+            pizza);
+
+        pizzas = await PizzaService.GetPizzasAsync();
+
+        mensagem = "✅ Pizza atualizada com sucesso!";
+        sucesso = true;
+
+        pizzaEmEdicaoId = null;
+
+        novaPizzaNome = "";
+        novaPizzaSemGluten = false;
+    }
+
+    private async Task ExcluirPizza(int id)
+    {
+        var confirmar = await JS.InvokeAsync<bool>(
+            "confirm",
+            "Deseja realmente excluir esta pizza?");
+
+        if (!confirmar)
+        {
+            return;
+        }
+
+        try
+        {
+            await PizzaService.DeletePizzaAsync(id);
+
+            pizzas = await PizzaService.GetPizzasAsync();
+
+            mensagem = "✅ Pizza excluída com sucesso!";
+            sucesso = true;
+        }
+        catch (Exception ex)
+        {
+            mensagem = ex.Message;
+            sucesso = false;
+        }
+    }
+
+    private void CancelarEdicao()
+    {
+        pizzaEmEdicaoId = null;
+
+        novaPizzaNome = "";
+        novaPizzaSemGluten = false;
+
+        mensagem = "✅ Edição cancelada.";
+        sucesso = true;
+    }
+
+    private async Task Logout()
+    {
+        await SessionStorage.DeleteAsync("token");
+        await SessionStorage.DeleteAsync("username");
+
+        Navigation.NavigateTo("/login");
+    }
+}

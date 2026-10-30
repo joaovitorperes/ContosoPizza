@@ -1,0 +1,67 @@
+﻿@page "/login"
+@rendermode InteractiveServer
+
+@using ContosoPizza.Web.Models
+@using ContosoPizza.Web.Services
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
+
+@inject AuthApiService AuthApiService
+@inject AuthState AuthState
+@inject ProtectedSessionStorage SessionStorage
+
+<h3>Login</h3>
+
+<div class="mb-3">
+    <label>Usuário</label>
+    <input class="form-control"
+           @bind="Username" />
+</div>
+
+<div class="mb-3">
+    <label>Senha</label>
+    <input type="password"
+           class="form-control"
+           @bind="Password" />
+</div>
+
+<button class="btn btn-primary"
+        @onclick="Entrar">
+    Entrar
+</button>
+
+@if (!string.IsNullOrEmpty(Mensagem))
+{
+    <div class="alert alert-info mt-3">
+        @Mensagem
+    </div>
+}
+
+@code {
+    private string Username = "";
+    private string Password = "";
+    private string Mensagem = "";
+
+    private async Task Entrar()
+    {
+        var login = new LoginDto
+        {
+            Username = Username,
+            Password = Password
+        };
+
+        var token = await AuthApiService.LoginAsync(login);
+
+        if (token is null)
+        {
+            Mensagem = "Login inválido.";
+            return;
+        }
+
+        await SessionStorage.SetAsync(
+            "token",
+            token);
+
+        Mensagem = "Login realizado com sucesso!";
+
+    }
+}
