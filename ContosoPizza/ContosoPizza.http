@@ -1,0 +1,41 @@
+@ContosoPizza_HostAddress = https://localhost:7084
+
+### Listar pizzas
+GET {{ContosoPizza_HostAddress}}/Pizza
+Accept: application/json
+
+###
+
+### Buscar pizza por ID
+GET {{ContosoPizza_HostAddress}}/Pizza/1
+Accept: application/json
+
+###
+
+### Criar pizza
+POST {{ContosoPizza_HostAddress}}/Pizza
+Content-Type: application/json
+
+{
+  "name": "Calabresa",
+  "isGlutenFree": false
+}
+
+###
+
+### Atualizar pizza
+PUT {{ContosoPizza_HostAddress}}/Pizza/1
+Content-Type: application/json
+
+{
+  "id": 1,
+  "name": "Calabresa Atualizada",
+  "isGlutenFree": false
+}
+
+###
+
+### Excluir pizza
+DELETE {{ContosoPizza_HostAddress}}/Pizza/1
+
+###

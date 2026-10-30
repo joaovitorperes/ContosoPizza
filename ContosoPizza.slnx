@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="../ContosoPizza.Web/ContosoPizza.Web/ContosoPizza.Web.csproj" />
+  <Project Path="ContosoPizza/ContosoPizza.csproj" />
+</Solution>
